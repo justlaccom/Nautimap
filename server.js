@@ -27,7 +27,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Gérer les connexions WebSocket des clients navigateurs
 wss.on('connection', (ws) => {
-    console.log('Client connecté au WebSocket local de NautiMap');
     let externalWs = null;
 
     // Écouter les messages du client (ex: demandes d'abonnements aux zones géographiques)
@@ -36,7 +35,6 @@ wss.on('connection', (ws) => {
             const clientPayload = JSON.parse(message);
             
             if (clientPayload && clientPayload.BoundingBoxes) {
-                console.log('Abonnement demandé par le client pour la zone BoundingBox :', JSON.stringify(clientPayload.BoundingBoxes));
                 
                 // Fermer l'ancienne connexion AISstream si existante pour ce client
                 if (externalWs) {
@@ -53,7 +51,6 @@ wss.on('connection', (ws) => {
                         "FilterMessageTypes": ["PositionReport"]
                     };
                     externalWs.send(JSON.stringify(subscriptionMsg));
-                    console.log('Abonnement AISstream envoyé avec succès');
                 });
 
                 externalWs.on('message', (aisMsg) => {
@@ -68,7 +65,6 @@ wss.on('connection', (ws) => {
                 });
 
                 externalWs.on('close', () => {
-                    console.log('Connexion AISstream.io fermée');
                 });
             }
         } catch (err) {
@@ -77,8 +73,6 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('close', () => {
-        console.log('Client déconnecté du WebSocket local');
-        // Fermer la connexion externe correspondante pour libérer la bande passante
         if (externalWs) {
             externalWs.close();
         }
