@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NautiMap - Carte Marine & Météo Temps Réel</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #040712;
+            --bg-surface: rgba(8, 14, 32, 0.7);
+            --bg-surface-opaque: #080e22;
+            --border-glow: rgba(0, 240, 255, 0.2);
+            --border-glow-active: rgba(0, 240, 255, 0.6);
+            --color-primary: #00f0ff;
+            --color-secondary: #00ffaa;
+            --color-warning: #ffaa00;
+            --color-danger: #ff3b30;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --font-main: 'Outfit', sans-serif;
+            --font-mono: 'Space Grotesk', sans-serif;
+            --shadow-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.1);
+            --blur-strength: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Header bar --- */
+        header {
+            height: 65px;
+            background: linear-gradient(180deg, rgba(4, 7, 18, 0.95) 0%, rgba(4, 7, 18, 0.8) 100%);
+            border-bottom: 1px solid var(--border-glow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+            font-size: 1.4rem;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #ffffff 40%, var(--color-primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo i {
+            -webkit-text-fill-color: initial;
+            color: var(--color-primary);
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-family: var(--font-mono);
+            letter-spacing: 0.5px;
+        }
+
+        .status-dot {
+            position: relative;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-secondary);
+            transition: all 0.3s;
+        }
+
+        .status-dot.connected {
+            background-color: var(--color-secondary);
+            box-shadow: 0 0 8px var(--color-secondary);
+        }
+
+        .status-dot.connected::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border-radius: 50%;
+            border: 1.5px solid var(--color-secondary);
+            animation: beacon-pulse 2s infinite ease-out;
+        }
+
+        .status-dot.connecting {
+            background-color: var(--color-warning);
+            box-shadow: 0 0 8px var(--color-warning);
+            animation: blink 1s infinite alternate;
+        }
+
+        .status-dot.disconnected {
+            background-color: var(--color-danger);
+            box-shadow: 0 0 8px var(--color-danger);
+        }
+
+        .btn {
+            background: rgba(0, 240, 255, 0.08);
+            color: var(--color-primary);
+            border: 1px solid var(--border-glow);
+            padding: 9px 18px;
+            border-radius: 10px;
+            font-family: var(--font-main);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn:hover {
+            background: rgba(0, 240, 255, 0.18);
+            border-color: var(--color-primary);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-gps {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(0, 255, 170, 0.08) 100%);
+            border-color: rgba(0, 240, 255, 0.3);
+            color: #fff;
+        }
+
+        /* --- Main Content Layout --- */
+        .app-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            height: calc(100vh - 65px);
+        }
+
+        /* --- Map Container --- */
+        #map {
+            flex: 1;
+            height: 100%;
+            z-index: 1;
+            background-color: #040712;
+        }
+
+        /* --- Floating Search Box --- */
+        .map-search-box {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-surface-opaque);
+            backdrop-filter: blur(var(--blur-strength));
+            -webkit-backdrop-filter: blur(var(--blur-strength));
+            border: 1px solid var(--border-glow);
+            border-radius: 14px;
+            box-shadow: var(--shadow-glow);
+            width: 340px;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .map-search-box:focus-within {
+            border-color: var(--color-primary);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 240, 255, 0.2);
+        }
+
+        .search-input-wrapper {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+        }
+
+        .map-search-box input {
+            background: none;
+            border: none;
+            outline: none;
+            color: #fff;
+            padding: 8px 4px;
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            flex: 1;
+            width: 100%;
+        }
+
+        .map-search-box input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .map-search-box button {
+            background: none;
+            border: none;
+            color: var(--color-primary);
+            cursor: pointer;
+            padding: 8px;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+
+        .map-search-box button:hover {
+            color: var(--color-secondary);
+        }
+
+        /* Search Autocomplete dropdown */
+        .search-results {
+            max-height: 240px;
+            overflow-y: auto;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: none;
+            border-radius: 0 0 14px 14px;
+            background: rgba(6, 11, 28, 0.95);
+        }
+
+        .search-result-item {
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            color: var(--text-primary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .search-result-item:hover {
+            background: rgba(0, 240, 255, 0.12);
+            color: var(--color-primary);
+            padding-left: 20px;
+        }
+
+        /* --- Sidebar / Floating Panels --- */
+        .sidebar {
+            position: absolute;
+            left: 25px;
+            top: 25px;
+            bottom: 25px;
+            width: 390px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            pointer-events: none;
+        }
+
+        .card {
+            pointer-events: auto;
+            background: var(--bg-surface);
+            backdrop-filter: blur(var(--blur-strength));
+            -webkit-backdrop-filter: blur(var(--blur-strength));
+            border: 1px solid var(--border-glow);
+            border-radius: 20px;
+            box-shadow: var(--shadow-glow);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            max-height: 48%;
+            overflow-y: auto;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 10px;
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+
+        .card-title i {
+            color: var(--color-primary);
+            filter: drop-shadow(0 0 5px rgba(0, 240, 255, 0.3));
+        }
+
+        /* --- Weather Layout --- */
+        .weather-current {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding: 0 5px;
+        }
+
+        .weather-temp-box {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .weather-temp {
+            font-size: 2.6rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: #fff;
+            line-height: 1;
+        }
+
+        .weather-desc {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .weather-icon-large {
+            font-size: 3.2rem;
+            filter: drop-shadow(0 0 10px rgba(0,240,255,0.2));
+        }
+
+        .weather-details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .weather-detail-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .weather-detail-item i {
+            font-size: 1.25rem;
+            color: var(--color-primary);
+            width: 22px;
+            text-align: center;
+        }
+
+        .weather-detail-label {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .weather-detail-value {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #fff;
+            font-family: var(--font-mono);
+            margin-top: 1px;
+        }
+
+        .weather-detail-sub {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            margin-top: 1px;
+        }
+
+        /* Compass Visual Indicator */
+        .compass-dial {
+            position: relative;
+            width: 52px;
+            height: 52px;
+            border: 2px solid rgba(0, 240, 255, 0.25);
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.25);
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
+            flex-shrink: 0;
+        }
+
+        .compass-label {
+            position: absolute;
+            font-size: 8px;
+            font-weight: 800;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+
+        .compass-label.north { top: 2px; left: 50%; transform: translateX(-50%); color: var(--color-danger); }
+        .compass-label.east  { right: 3px; top: 50%; transform: translateY(-50%); }
+        .compass-label.south { bottom: 2px; left: 50%; transform: translateX(-50%); }
+        .compass-label.west  { left: 3px; top: 50%; transform: translateY(-50%); }
+
+        .compass-needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 24px;
+            background: linear-gradient(to bottom, var(--color-primary) 50%, var(--text-secondary) 50%);
+            transform: translate(-50%, -50%) rotate(0deg);
+            transform-origin: center;
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .compass-needle::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -3px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 6px solid var(--color-primary);
+        }
+
+        .weather-forecast {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+        }
+
+        .forecast-day {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 10px;
+            min-width: 68px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+
+        .forecast-day:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .forecast-day-name {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .forecast-temp {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: #fff;
+        }
+
+        /* --- Tide Layout --- */
+        .tide-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            background: rgba(0, 240, 255, 0.03);
+            border: 1px solid rgba(0, 240, 255, 0.08);
+            border-radius: 14px;
+            padding: 14px 20px;
+        }
+
+        .tide-stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tide-stat-label {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tide-stat-val {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+            margin-top: 3px;
+        }
+
+        /* Tide Level Visual Gauge */
+        .tide-level-gauge {
+            position: relative;
+            width: 18px;
+            height: 65px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            align-items: flex-end;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .tide-level-gauge-fill {
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(to top, rgba(0, 240, 255, 0.8), rgba(0, 255, 170, 0.8));
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+            transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .tide-gauge-label {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 6px;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: #fff;
+            pointer-events: none;
+        }
+
+        .tide-gauge-label.top { top: 2px; }
+        .tide-gauge-label.bottom { bottom: 2px; }
+
+        .tide-chart-container {
+            position: relative;
+            height: 145px;
+            width: 100%;
+            margin-bottom: 18px;
+        }
+
+        .tide-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tide-day-card {
+            background: rgba(255, 255, 255, 0.018);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .tide-day-card:hover {
+            border-color: rgba(0, 240, 255, 0.18);
+        }
+
+        .tide-day-card.today {
+            border-color: rgba(0, 240, 255, 0.3);
+            background: rgba(0, 240, 255, 0.04);
+        }
+
+        .tide-day-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .tide-day-name {
+            font-weight: 700;
+            font-size: 0.92rem;
+            color: #fff;
+            letter-spacing: 0.3px;
+        }
+
+        .tide-day-card.today .tide-day-name {
+            color: var(--color-primary);
+            text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+        }
+
+        .tide-day-date {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+
+        .tide-events-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: rgba(255,255,255,0.04);
+        }
+
+        .tide-event-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 10px 8px;
+            background: rgba(4, 7, 18, 0.6);
+            text-align: center;
+        }
+
+        .tide-event-cell .event-type-badge {
+            font-size: 0.65rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tide-event-cell.high .event-type-badge { color: var(--color-secondary); }
+        .tide-event-cell.low  .event-type-badge { color: var(--color-primary); }
+
+        .tide-event-cell .event-time {
+            font-size: 1.05rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: #fff;
+        }
+
+        .tide-event-cell .event-height {
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+
+        .tide-event-cell.high .event-height {
+            background: rgba(0, 255, 170, 0.12);
+            color: var(--color-secondary);
+        }
+
+        .tide-event-cell.low .event-height {
+            background: rgba(0, 240, 255, 0.1);
+            color: var(--color-primary);
+        }
+
+        /* --- Location overlay banner (Initial prompt) --- */
+        .location-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(4, 7, 18, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .location-box {
+            max-width: 460px;
+            background: #080e22;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 40px rgba(0, 240, 255, 0.2);
+            padding: 45px 35px;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 22px;
+        }
+
+        .location-icon {
+            font-size: 4.5rem;
+            color: var(--color-primary);
+            text-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+            animation: bounce-slow 2.5s infinite ease-in-out;
+        }
+
+        .location-box h1 {
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .location-box p {
+            color: var(--text-secondary);
+            font-size: 0.98rem;
+            line-height: 1.6;
+        }
+
+        /* --- Mobile Navigation tabs (Mobile Only) --- */
+        .mobile-nav {
+            display: none;
+            height: 60px;
+            background: #040712;
+            border-top: 1px solid var(--border-glow);
+            grid-template-columns: repeat(3, 1fr);
+            z-index: 1000;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+        }
+
+        .mobile-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            gap: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mobile-nav-item.active {
+            color: var(--color-primary);
+            text-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
+        }
+
+        .mobile-nav-item i {
+            font-size: 1.3rem;
+        }
+
+        /* Leaflet elements customization */
+        .leaflet-top.leaflet-right {
+            display: none;
+        }
+        .leaflet-bottom.leaflet-right .leaflet-bar {
+            margin-bottom: 12px;
+            margin-right: 12px;
+        }
+        .leaflet-bar {
+            border: 1px solid var(--border-glow) !important;
+            box-shadow: var(--shadow-glow) !important;
+            border-radius: 10px !important;
+            overflow: hidden;
+        }
+        .leaflet-bar a {
+            background-color: var(--bg-surface-opaque) !important;
+            color: #fff !important;
+            border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+            transition: all 0.2s;
+        }
+        .leaflet-bar a:hover {
+            background-color: var(--color-primary) !important;
+            color: var(--bg-base) !important;
+        }
+        .leaflet-popup-content-wrapper {
+            background: var(--bg-surface-opaque) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--color-primary);
+            color: #fff !important;
+            border-radius: 14px !important;
+            box-shadow: var(--shadow-glow) !important;
+            font-family: var(--font-main);
+            padding: 5px;
+        }
+        .leaflet-popup-tip {
+            background: var(--bg-surface-opaque) !important;
+            border-left: 1px solid var(--color-primary);
+            border-bottom: 1px solid var(--color-primary);
+        }
+        
+        /* Custom Popup Content */
+        .ship-popup {
+            padding: 8px;
+            min-width: 230px;
+        }
+        .ship-popup-title {
+            font-weight: 700;
+            color: var(--color-primary);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ship-popup-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            row-gap: 6px;
+            column-gap: 12px;
+            font-size: 0.8rem;
+        }
+        .ship-popup-label {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .ship-popup-val {
+            color: #fff;
+            font-family: var(--font-mono);
+            text-align: right;
+            font-weight: 500;
+        }
+
+        /* --- Animations --- */
+        @keyframes pulse-glow {
+            0%, 100% {
+                filter: drop-shadow(0 0 2px rgba(0, 240, 255, 0.4));
+            }
+            50% {
+                filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.8));
+            }
+        }
+
+        @keyframes beacon-pulse {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+
+        @keyframes blink {
+            from { opacity: 0.4; }
+            to { opacity: 1; }
+        }
+
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        /* --- Responsive Queries --- */
+        @media (max-width: 768px) {
+            header {
+                padding: 0 16px;
+                height: 60px;
+            }
+            .header-controls .status-badge {
+                display: none;
+            }
+            .app-container {
+                flex-direction: column;
+                height: calc(100vh - 120px);
+            }
+            #map {
+                width: 100%;
+                height: 100%;
+                transition: none;
+            }
+            /* When a panel is open, hide the map entirely and let the card fill all space */
+            .app-container.panel-open #map {
+                display: none;
+            }
+            .app-container.panel-open {
+                height: calc(100vh - 120px);
+            }
+            .app-container.panel-open .sidebar {
+                position: relative;
+                inset: unset;
+                width: 100%;
+                height: 100%;
+                pointer-events: auto;
+            }
+            .app-container.panel-open .card.active-mobile {
+                position: relative;
+                inset: unset;
+                width: 100%;
+                height: 100%;
+                max-height: 100%;
+                border-radius: 0;
+                padding: 16px;
+            }
+            .map-search-box {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                width: calc(100% - 20px);
+                border-radius: 12px;
+            }
+            .app-container.hide-search .map-search-box {
+                display: none;
+            }
+            .sidebar {
+                position: absolute;
+                inset: 10px;
+                width: calc(100% - 20px);
+                height: calc(100% - 20px);
+                pointer-events: none;
+                gap: 0;
+            }
+            .card {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                max-height: 100%;
+                display: none;
+                border-radius: 16px;
+                padding: 16px;
+            }
+            .card.active-mobile {
+                display: flex;
+                pointer-events: auto;
+            }
+            .mobile-nav {
+                display: grid;
+            }
+            .btn-gps {
+                padding: 7px 14px;
+                font-size: 0.85rem;
+            }
+            /* Tide grid: 2 columns on mobile so 4 events fill exactly 2 rows */
+            .tide-events-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .tide-event-cell .event-time {
+                font-size: 0.95rem;
+            }
+        }
+
+        /* Loading spinner overlay state */
+        .location-loading {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .spinner-ring {
+            position: relative;
+            width: 72px;
+            height: 72px;
+        }
+
+        .spinner-ring::before,
+        .spinner-ring::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+        }
+
+        .spinner-ring::before {
+            border: 3px solid rgba(0, 240, 255, 0.12);
+        }
+
+        .spinner-ring::after {
+            border: 3px solid transparent;
+            border-top-color: var(--color-primary);
+            border-right-color: var(--color-primary);
+            animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            filter: drop-shadow(0 0 8px var(--color-primary));
+        }
+
+        .spinner-pulse {
+            position: absolute;
+            inset: 12px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 240, 255, 0.18) 0%, transparent 70%);
+            animation: pulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-label {
+            font-size: 0.95rem;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+            letter-spacing: 1px;
+            animation: textPulse 1.6s ease-in-out infinite;
+        }
+
+        .loading-sublabel {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 220px;
+            line-height: 1.5;
+        }
+
+        @keyframes textPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-anchor"></i>
+            <span>NautiMap</span>
+        </div>
+        <div class="header-controls">
+            <div class="status-badge" title="Statut du trafic temps réel (AIS)">
+                <div class="status-dot disconnected" id="connection-dot"></div>
+                <span id="connection-text">Trafic Inactif</span>
+            </div>
+            <button class="btn btn-gps" id="btn-geoloc">
+                <i class="fa-solid fa-crosshairs"></i>
+                <span>Ma Position</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- App Container -->
+    <div class="app-container" id="app-container">
+        
+        <!-- Location Request Overlay -->
+        <div class="location-overlay" id="location-overlay">
+            <div class="location-box">
+
+                <!-- Default state: ask for permission -->
+                <div id="location-ask-state">
+                    <i class="fa-solid fa-location-dot location-icon"></i>
+                    <h1>Activer la Localisation</h1>
+                    <p>NautiMap requiert votre position pour charger les cartes marines, la météo locale et l'annuaire des marées de votre zone.</p>
+                    <button class="btn btn-gps" style="font-size: 1.1rem; padding: 12px 24px;" id="btn-grant-location">
+                        <i class="fa-solid fa-circle-check"></i>
+                        Autoriser la localisation
+                    </button>
+                    <button id="btn-skip-location" style="background:none; border:none; color: var(--text-secondary); text-decoration: underline; cursor: pointer; font-size: 0.85rem; margin-top: 10px;">
+                        Continuer sans localisation (Arradon par défaut)
+                    </button>
+                </div>
+
+                <!-- Loading state: shown while waiting for GPS -->
+                <div class="location-loading" id="location-loading-state">
+                    <div class="spinner-ring">
+                        <div class="spinner-pulse"></div>
+                    </div>
+                    <div class="loading-label">LOCALISATION EN COURS…</div>
+                    <div class="loading-sublabel">Détermination de votre position et recherche de la zone maritime la plus proche.</div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Sidebar / Floating Panels -->
+        <div class="sidebar">
+            
+            <!-- Weather Card -->
+            <div class="card" id="card-weather">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-cloud-sun"></i>
+                        <span>Météo Marine</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono);" id="weather-coords">-- , --</span>
+                </div>
+                
+                <div class="weather-current">
+                    <div class="weather-temp-box">
+                        <div class="weather-temp" id="weather-temp">--°C</div>
+                        <div class="weather-desc" id="weather-desc">Chargement...</div>
+                    </div>
+                    <i class="fa-solid fa-circle-notch fa-spin weather-icon-large" id="weather-icon" style="color: var(--color-primary);"></i>
+                </div>
+
+                <div class="weather-details-grid">
+                    <!-- Compass & Wind row merged -->
+                    <div class="weather-detail-item" style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <i class="fa-solid fa-wind" style="font-size: 1.4rem;"></i>
+                            <div>
+                                <div class="weather-detail-label">Vent</div>
+                                <div class="weather-detail-value" id="weather-wind" style="font-size: 1.1rem;">-- kt</div>
+                                <div class="weather-detail-sub" id="weather-wind-dir-text">--°</div>
+                            </div>
+                        </div>
+                        <div class="compass-dial">
+                            <span class="compass-label north">N</span>
+                            <span class="compass-label east">E</span>
+                            <span class="compass-label south">S</span>
+                            <span class="compass-label west">O</span>
+                            <div class="compass-needle" id="wind-needle"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="weather-detail-item">
+                        <i class="fa-solid fa-water" style="font-size: 1.25rem;"></i>
+                        <div>
+                            <div class="weather-detail-label">Vagues</div>
+                            <div class="weather-detail-value" id="weather-waves">-- m</div>
+                            <div class="weather-detail-sub" id="weather-waves-dir-text">--</div>
+                        </div>
+                    </div>
+                    
+                    <div class="weather-detail-item">
+                        <i class="fa-solid fa-gauge-simple-high"></i>
+                        <div>
+                            <div class="weather-detail-label">Pression</div>
+                            <div class="weather-detail-value" id="weather-pressure">-- hPa</div>
+                            <div class="weather-detail-sub">Atmosphérique</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="weather-forecast" id="weather-forecast-container">
+                    <!-- Forecast days loaded by JS -->
+                </div>
+            </div>
+
+            <!-- Tide Card -->
+            <div class="card" id="card-tides">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-water"></i>
+                        <span>Hauteur d'Eau & Marées</span>
+                    </div>
+                    <span id="tide-factor" style="font-size: 0.75rem; color: var(--color-secondary); font-family: var(--font-mono); font-weight: 600;">--</span>
+                </div>
+
+                <div class="tide-stats">
+                    <div style="display: flex; flex-direction: column; flex: 1; gap: 8px;">
+                        <div class="tide-stat-item">
+                            <div class="tide-stat-label">Niveau Actuel</div>
+                            <div class="tide-stat-val" id="tide-current-level" style="font-size: 1.4rem;">-- m</div>
+                        </div>
+                        <div class="tide-stat-item">
+                            <div class="tide-stat-label">Prochaine Étape</div>
+                            <div class="tide-stat-val" id="tide-next-event" style="color: var(--color-warning); font-size: 0.9rem; font-weight: 600; margin-top: 1px;">--</div>
+                        </div>
+                    </div>
+                    <div class="tide-level-gauge" title="Niveau d'eau en temps réel entre la Basse Mer et la Pleine Mer">
+                        <div class="tide-level-gauge-fill" id="tide-gauge-fill"></div>
+                        <span class="tide-gauge-label top">PM</span>
+                        <span class="tide-gauge-label bottom">BM</span>
+                    </div>
+                </div>
+
+                <div class="tide-chart-container">
+                    <canvas id="tideChart"></canvas>
+                </div>
+
+                <div class="tide-list" id="tide-list-container">
+                    <!-- 7 days list loaded by JS -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Floating Search Box -->
+        <div class="map-search-box">
+            <div class="search-input-wrapper">
+                <input type="text" id="search-input" placeholder="Rechercher un port, une ville...">
+                <button id="search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+            <div class="search-results" id="search-results"></div>
+        </div>
+
+        <!-- Interactive Map -->
+        <div id="map"></div>
+
+    </div>
+
+    <!-- Mobile Nav Bar -->
+    <div class="mobile-nav">
+        <div class="mobile-nav-item active" onclick="switchMobileTab('map')">
+            <i class="fa-solid fa-map"></i>
+            <span>Carte</span>
+        </div>
+        <div class="mobile-nav-item" onclick="switchMobileTab('weather')">
+            <i class="fa-solid fa-cloud-sun"></i>
+            <span>Météo</span>
+        </div>
+        <div class="mobile-nav-item" onclick="switchMobileTab('tides')">
+            <i class="fa-solid fa-water"></i>
+            <span>Marées</span>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        // Global State
+        let map;
+        let currentCoords = { lat: 47.6153, lng: -2.8308 }; // Arradon (56610) default
+        let userMarker;
+        let aisSocket = null;
+        let shipMarkers = {}; // MMSI -> Leaflet Marker
+        let shipData = {}; // MMSI -> raw ship details
+        let tideChartInstance = null;
+        let currentTab = 'map';
+        let socketReconnectTimeout = null;
+        let isRedirecting = false; // Flag to prevent infinite check loops
+
+        // Fallback coastal cities list (used when location is inland and no Nominatim results matches sea points)
+        const fallbackCoastalCities = [
+            { name: "La Rochelle, France", lat: 46.1591, lng: -1.1522 },
+            { name: "Brest, France", lat: 48.3903, lng: -4.4860 },
+            { name: "Marseille, France", lat: 43.2965, lng: 5.3698 },
+            { name: "Nice, France", lat: 43.7102, lng: 7.2620 },
+            { name: "Biarritz, France", lat: 43.4832, lng: -1.5586 },
+            { name: "Le Havre, France", lat: 49.4944, lng: 0.1079 },
+            { name: "Saint-Malo, France", lat: 48.6493, lng: -2.0089 },
+            { name: "Toulon, France", lat: 43.1242, lng: 5.9280 },
+            { name: "Les Sables-d'Olonne, France", lat: 46.4972, lng: -1.7851 },
+            { name: "Arcachon, France", lat: 44.6598, lng: -1.1643 }
+        ];
+
+        // Initialize App on DOM load
+        document.addEventListener("DOMContentLoaded", () => {
+            initEvents();
+            initSearch();
+        });
+
+        function initEvents() {
+            document.getElementById('btn-grant-location').addEventListener('click', requestLocation);
+            document.getElementById('btn-skip-location').addEventListener('click', () => {
+                dismissLocationOverlay();
+                initApp();
+            });
+            document.getElementById('btn-geoloc').addEventListener('click', requestLocationAndCenter);
+        }
+
+        // Initialize address autocomplete search box
+        function initSearch() {
+            const searchInput = document.getElementById('search-input');
+            const searchResults = document.getElementById('search-results');
+            const searchBtn = document.getElementById('search-btn');
+
+            let debounceTimer;
+
+            searchInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                const query = searchInput.value.trim();
+                
+                if (query.length < 3) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+                
+                debounceTimer = setTimeout(() => {
+                    performSearch(query);
+                }, 500);
+            });
+
+            searchBtn.addEventListener('click', () => {
+                const query = searchInput.value.trim();
+                if (query.length >= 3) {
+                    performSearch(query);
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.map-search-box')) {
+                    searchResults.style.display = 'none';
+                }
+            });
+        }
+
+        // Call OSM Nominatim geocoding API
+        async function performSearch(query) {
+            const searchResults = document.getElementById('search-results');
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
+                const res = await fetch(url, {
+                    headers: { 'Accept-Language': 'fr' }
+                });
+                const data = await res.json();
+                
+                if (data && data.length > 0) {
+                    renderSearchResults(data);
+                } else {
+                    searchResults.innerHTML = '<div class="search-result-item">Aucun résultat trouvé</div>';
+                    searchResults.style.display = 'block';
+                }
+            } catch (err) {
+                console.error("Geocoding search error:", err);
+            }
+        }
+
+        function renderSearchResults(results) {
+            const searchResults = document.getElementById('search-results');
+            const searchInput = document.getElementById('search-input');
+            
+            searchResults.innerHTML = '';
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.textContent = item.display_name;
+                
+                div.addEventListener('click', () => {
+                    const lat = parseFloat(item.lat);
+                    const lng = parseFloat(item.lon);
+                    
+                    // Center and check if we need to redirect this search point to the sea
+                    checkAndRedirectToSea(lat, lng, item.display_name.split(',')[0]);
+                    
+                    searchResults.style.display = 'none';
+                });
+                
+                searchResults.appendChild(div);
+            });
+            searchResults.style.display = 'block';
+        }
+
+        function showLocationLoading() {
+            document.getElementById('location-ask-state').style.display = 'none';
+            const loadingEl = document.getElementById('location-loading-state');
+            loadingEl.style.display = 'flex';
+        }
+
+        function requestLocation() {
+            if (navigator.geolocation) {
+                showLocationLoading();
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        currentCoords.lat = position.coords.latitude;
+                        currentCoords.lng = position.coords.longitude;
+                        dismissLocationOverlay();
+                        initApp();
+                    },
+                    (error) => {
+                        // Reset to ask state on error
+                        document.getElementById('location-loading-state').style.display = 'none';
+                        document.getElementById('location-ask-state').style.display = 'block';
+                        alert("Localisation refusée ou introuvable. Utilisation de la position par défaut (Arradon).");
+                        dismissLocationOverlay();
+                        initApp();
+                    },
+                    { enableHighAccuracy: true, timeout: 15000 }
+                );
+            } else {
+                alert("La géolocalisation n'est pas supportée par votre navigateur.");
+                dismissLocationOverlay();
+                initApp();
+            }
+        }
+
+        function requestLocationAndCenter() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    checkAndRedirectToSea(lat, lng, "Ma Position");
+                });
+            }
+        }
+
+        function dismissLocationOverlay() {
+            const overlay = document.getElementById('location-overlay');
+            overlay.style.opacity = 0;
+            setTimeout(() => overlay.style.display = 'none', 500);
+        }
+
+        function initApp() {
+            map = L.map('map', {
+                zoomControl: false,
+                minZoom: 4,
+                attributionControl: false
+            }).setView([currentCoords.lat, currentCoords.lng], 11);
+
+            // Zoom control placed at bottom-right
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+                maxZoom: 18
+            }).addTo(map);
+
+            userMarker = L.marker([currentCoords.lat, currentCoords.lng], {
+                icon: L.divIcon({
+                    html: `<div style="background: var(--color-primary); width: 14px; height: 14px; border-radius:50%; border: 2px solid #fff; box-shadow: 0 0 10px var(--color-primary); animation: blink 1.5s infinite alternate;"></div>`,
+                    className: 'user-marker',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                })
+            }).addTo(map);
+
+            // Fetch initial location (which will auto-check and redirect to sea if inland)
+            checkAndRedirectToSea(currentCoords.lat, currentCoords.lng, "Localisation Initiale");
+
+            map.on('click', (e) => {
+                checkAndRedirectToSea(e.latlng.lat, e.latlng.lng, "Point sélectionné");
+            });
+
+            setupAIS();
+
+            let mapMoveTimeout;
+            map.on('moveend', () => {
+                clearTimeout(mapMoveTimeout);
+                mapMoveTimeout = setTimeout(() => {
+                    setupAIS();
+                }, 1500);
+            });
+
+            setInterval(cleanStaleShips, 30000);
+        }
+
+        // Distance helper (Haversine formula) in kilometers
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c;
+        }
+
+        // Detects if a coordinate is inland. If so, redirects automatically to the nearest sea point.
+        async function checkAndRedirectToSea(lat, lng, nameContext) {
+            if (isRedirecting) return;
+            
+            try {
+                // Check if this location is near the sea using the Open-Meteo Marine API
+                const checkUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&current=wave_height&timezone=auto`;
+                const res = await fetch(checkUrl);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.current && data.current.wave_height !== null) {
+                        // Already a sea point! Directly render.
+                        currentCoords = { lat, lng };
+                        if (userMarker) {
+                            userMarker.setLatLng([lat, lng]);
+                        }
+                        map.setView([lat, lng]);
+                        updateWeatherAndTides(lat, lng);
+                        return;
+                    }
+                }
+                
+                // Location is inland! Trigger redirection search
+                console.log(`Point (${lat}, ${lng}) dans les terres. Recherche de la côte la plus proche...`);
+                isRedirecting = true;
+                
+                // Visual loading update in weather card
+                document.getElementById('weather-desc').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Recherche de la côte...`;
+                
+                // 1. Query Nominatim for sea ports biased near coordinates
+                let candidates = [];
+                try {
+                    const searchUrl = `https://nominatim.openstreetmap.org/search?q=port+maritime&format=json&lat=${lat}&lon=${lng}&limit=12`;
+                    const searchRes = await fetch(searchUrl, { headers: { 'Accept-Language': 'fr' } });
+                    if (searchRes.ok) {
+                        const searchData = await searchRes.json();
+                        if (searchData && searchData.length > 0) {
+                            candidates = searchData.map(item => ({
+                                name: item.display_name,
+                                lat: parseFloat(item.lat),
+                                lng: parseFloat(item.lon)
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    console.error("Nominatim search failed during redirection check:", e);
+                }
+                
+                // 2. Combine with fallback list
+                const mergedCandidates = [...candidates];
+                fallbackCoastalCities.forEach(city => {
+                    mergedCandidates.push(city);
+                });
+                
+                // 3. Sort candidates by distance from the user's coordinates
+                mergedCandidates.forEach(cand => {
+                    cand.distance = getDistance(lat, lng, cand.lat, cand.lng);
+                });
+                mergedCandidates.sort((a, b) => a.distance - b.distance);
+                
+                // 4. Test candidates sequentially with Open-Meteo Marine API
+                let foundSeaPoint = null;
+                for (let i = 0; i < Math.min(mergedCandidates.length, 6); i++) {
+                    const cand = mergedCandidates[i];
+                    try {
+                        const testUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${cand.lat}&longitude=${cand.lng}&current=wave_height&timezone=auto`;
+                        const testRes = await fetch(testUrl);
+                        if (testRes.ok) {
+                            const testData = await testRes.json();
+                            if (testData && testData.current && testData.current.wave_height !== null) {
+                                foundSeaPoint = cand;
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Testing candidate ${cand.name} failed:`, e);
+                    }
+                }
+                
+                // 5. Fallback if Nominatim testing fails
+                if (!foundSeaPoint) {
+                    foundSeaPoint = fallbackCoastalCities.map(city => ({
+                        ...city,
+                        distance: getDistance(lat, lng, city.lat, city.lng)
+                    })).sort((a, b) => a.distance - b.distance)[0];
+                }
+                
+                console.log(`Redirigé vers : ${foundSeaPoint.name} (${foundSeaPoint.lat}, ${foundSeaPoint.lng})`);
+                
+                // Update map view & marker coordinates
+                currentCoords = { lat: foundSeaPoint.lat, lng: foundSeaPoint.lng };
+                if (userMarker) {
+                    userMarker.setLatLng([currentCoords.lat, currentCoords.lng]);
+                }
+                map.setView([currentCoords.lat, currentCoords.lng], 11);
+                
+                // Update UI data
+                updateWeatherAndTides(currentCoords.lat, currentCoords.lng);
+                
+                // Show redirection details inside search input
+                const searchInput = document.getElementById('search-input');
+                searchInput.value = foundSeaPoint.name.split(',')[0];
+                
+                // Show notification inside weather card
+                setTimeout(() => {
+                    document.getElementById('weather-desc').innerHTML = `<i class="fa-solid fa-anchor"></i> Côte la plus proche : ${foundSeaPoint.name.split(',')[0]}`;
+                }, 1000);
+
+            } catch (err) {
+                console.error("Error in checkAndRedirectToSea:", err);
+            } finally {
+                isRedirecting = false;
+            }
+        }
+
+        function switchMobileTab(tab) {
+            currentTab = tab;
+
+            document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('card-weather').classList.remove('active-mobile');
+            document.getElementById('card-tides').classList.remove('active-mobile');
+
+            const appContainer = document.getElementById('app-container');
+
+            const tabIndexMap = { 'map': 0, 'weather': 1, 'tides': 2 };
+            const items = document.querySelectorAll('.mobile-nav-item');
+            if (items[tabIndexMap[tab]]) {
+                items[tabIndexMap[tab]].classList.add('active');
+            }
+
+            if (tab === 'weather') {
+                document.getElementById('card-weather').classList.add('active-mobile');
+                appContainer.classList.add('hide-search');
+                appContainer.classList.add('panel-open');
+            } else if (tab === 'tides') {
+                document.getElementById('card-tides').classList.add('active-mobile');
+                appContainer.classList.add('hide-search');
+                appContainer.classList.add('panel-open');
+            } else {
+                appContainer.classList.remove('hide-search');
+                appContainer.classList.remove('panel-open');
+                // Trigger Leaflet resize so tiles render correctly after map was hidden
+                setTimeout(() => { if (map) map.invalidateSize(); }, 50);
+            }
+        }
+
+        function updateWeatherAndTides(lat, lng) {
+            document.getElementById('weather-coords').textContent = `${lat.toFixed(4)} , ${lng.toFixed(4)}`;
+            fetchWeather(lat, lng);
+            computeLocalTides(lat, lng);
+        }
+
+        async function fetchWeather(lat, lng) {
+            const weatherIconEl = document.getElementById('weather-icon');
+            weatherIconEl.className = "fa-solid fa-circle-notch fa-spin weather-icon-large";
+            weatherIconEl.style.color = "var(--color-primary)";
+
+            try {
+                const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                const forecastRes = await fetch(forecastUrl);
+                const forecastData = await forecastRes.json();
+
+                const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&current=wave_height,wave_direction,wave_period&timezone=auto`;
+                const marineRes = await fetch(marineUrl);
+                let marineData = null;
+                if (marineRes.ok) {
+                    marineData = await marineRes.json();
+                }
+
+                const current = forecastData.current;
+                const weatherInfo = weatherMap[current.weather_code] || { desc: 'Inconnu', icon: 'fa-question', color: '#94a3b8' };
+
+                document.getElementById('weather-temp').textContent = `${Math.round(current.temperature_2m)}°C`;
+                document.getElementById('weather-desc').textContent = weatherInfo.desc;
+                
+                weatherIconEl.className = `fa-solid ${weatherInfo.icon} weather-icon-large`;
+                weatherIconEl.style.color = weatherInfo.color;
+
+                const windKt = Math.round(current.wind_speed_10m * 0.539957);
+                document.getElementById('weather-wind').textContent = `${windKt} kt`;
+                document.getElementById('weather-wind-dir-text').textContent = `${current.wind_direction_10m}°`;
+                document.getElementById('wind-needle').style.transform = `translate(-50%, -50%) rotate(${current.wind_direction_10m}deg)`;
+
+                if (marineData && marineData.current && marineData.current.wave_height !== null) {
+                    const waveH = marineData.current.wave_height.toFixed(1);
+                    const waveP = marineData.current.wave_period ? `${Math.round(marineData.current.wave_period)}s` : '';
+                    document.getElementById('weather-waves').textContent = `${waveH}m ${waveP}`;
+                    
+                    const waveDir = marineData.current.wave_direction;
+                    document.getElementById('weather-waves-dir-text').textContent = waveDir !== undefined ? `${waveDir}°` : 'Mer agitée';
+                } else {
+                    document.getElementById('weather-waves').textContent = "Calme (Terre)";
+                    document.getElementById('weather-waves-dir-text').textContent = "--";
+                }
+
+                document.getElementById('weather-pressure').textContent = `${Math.round(current.pressure_msl)} hPa`;
+
+                const daily = forecastData.daily;
+                const forecastContainer = document.getElementById('weather-forecast-container');
+                forecastContainer.innerHTML = '';
+
+                const weekDays = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+                for (let i = 0; i < daily.time.length; i++) {
+                    const dateObj = new Date(daily.time[i]);
+                    const dayName = weekDays[dateObj.getDay()];
+                    const dayCode = daily.weather_code[i];
+                    const dayInfo = weatherMap[dayCode] || { icon: 'fa-question', color: '#94a3b8' };
+
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = 'forecast-day';
+                    dayDiv.innerHTML = `
+                        <span class="forecast-day-name">${dayName}</span>
+                        <i class="fa-solid ${dayInfo.icon}" style="color: ${dayInfo.color}; font-size:1.1rem; margin: 3px 0;"></i>
+                        <span class="forecast-temp">${Math.round(daily.temperature_2m_max[i])}°</span>
+                    `;
+                    forecastContainer.appendChild(dayDiv);
+                }
+
+            } catch (err) {
+                console.error("Error fetching weather details:", err);
+                document.getElementById('weather-desc').textContent = "Erreur de chargement";
+            }
+        }
+
+        const weatherMap = {
+            0: { desc: 'Ciel dégagé', icon: 'fa-sun', color: '#ffaa00' },
+            1: { desc: 'Peu nuageux', icon: 'fa-cloud-sun', color: '#cbd5e1' },
+            2: { desc: 'Partiellement nuageux', icon: 'fa-cloud-sun', color: '#cbd5e1' },
+            3: { desc: 'Couvert', icon: 'fa-cloud', color: '#94a3b8' },
+            45: { desc: 'Brouillard', icon: 'fa-smog', color: '#94a3b8' },
+            48: { desc: 'Brouillard givrant', icon: 'fa-smog', color: '#94a3b8' },
+            51: { desc: 'Bruine légère', icon: 'fa-cloud-rain', color: '#60a5fa' },
+            53: { desc: 'Bruine modérée', icon: 'fa-cloud-rain', color: '#60a5fa' },
+            55: { desc: 'Bruine dense', icon: 'fa-cloud-showers-heavy', color: '#3b82f6' },
+            61: { desc: 'Pluie faible', icon: 'fa-cloud-rain', color: '#60a5fa' },
+            63: { desc: 'Pluie modérée', icon: 'fa-cloud-rain', color: '#3b82f6' },
+            65: { desc: 'Pluie forte', icon: 'fa-cloud-showers-heavy', color: '#2563eb' },
+            71: { desc: 'Neige légère', icon: 'fa-snowflake', color: '#93c5fd' },
+            73: { desc: 'Neige modérée', icon: 'fa-snowflake', color: '#e2e8f0' },
+            75: { desc: 'Neige forte', icon: 'fa-snowflake', color: '#ffffff' },
+            80: { desc: 'Averses de pluie faibles', icon: 'fa-cloud-sun-rain', color: '#60a5fa' },
+            81: { desc: 'Averses de pluie modérées', icon: 'fa-cloud-showers-heavy', color: '#3b82f6' },
+            82: { desc: 'Averses de pluie violentes', icon: 'fa-cloud-showers-water', color: '#1d4ed8' },
+            95: { desc: 'Orage', icon: 'fa-cloud-bolt', color: '#f59e0b' },
+            96: { desc: 'Orage avec grêle légère', icon: 'fa-cloud-bolt', color: '#f59e0b' },
+            99: { desc: 'Orage avec grêle forte', icon: 'fa-cloud-bolt', color: '#dc2626' }
+        };
+
+        function computeLocalTides(lat, lng) {
+            const now = Date.now();
+            const currentHeight = getTideHeightAtTime(lat, lng, now);
+            document.getElementById('tide-current-level').textContent = `${currentHeight.toFixed(2)} m`;
+            
+            const moonAgeDays = getMoonAge(new Date());
+            const coeff = Math.round(45 + 75 * Math.abs(Math.sin((moonAgeDays / 29.530588853) * 2 * Math.PI)));
+            document.getElementById('tide-factor').textContent = `Coeff: ${coeff}`;
+
+            const todayTides = getTideExtremaForDay(lat, lng, new Date());
+            const tomorrowTides = getTideExtremaForDay(lat, lng, new Date(now + 24*3600*1000));
+            const allUpcoming = [...todayTides, ...tomorrowTides].filter(t => t.timestamp > now);
+
+            if (allUpcoming.length > 0) {
+                const next = allUpcoming[0];
+                const diffMin = Math.round((next.timestamp - now) / 60000);
+                const hrs = Math.floor(diffMin / 60);
+                const mins = diffMin % 60;
+                document.getElementById('tide-next-event').textContent = `${next.type === 'Pleine Mer' ? 'PM' : 'BM'} dans ${hrs}h${mins < 10 ? '0':''}${mins}`;
+            }
+
+            if (todayTides.length > 1) {
+                const heights = todayTides.map(t => parseFloat(t.height));
+                const minH = Math.min(...heights);
+                const maxH = Math.max(...heights);
+                const range = maxH - minH;
+                const fillPercent = Math.min(100, Math.max(0, ((currentHeight - minH) / (range || 1)) * 100));
+                document.getElementById('tide-gauge-fill').style.height = `${fillPercent}%`;
+            } else {
+                document.getElementById('tide-gauge-fill').style.height = '50%';
+            }
+
+            renderTideChart(lat, lng);
+            renderTidesList(lat, lng);
+        }
+
+        function getMoonAge(date) {
+            const tempDate = new Date(date);
+            const y = tempDate.getFullYear();
+            const m = tempDate.getMonth() + 1;
+            const d = tempDate.getDate();
+            
+            const c = (y * 365.25) | 0;
+            const e = (m * 30.6) | 0;
+            const jd = c + e + d - 694039.09 + 0.5;
+            const phase = jd / 29.530588853;
+            return (phase - (phase | 0)) * 29.530588853;
+        }
+
+        function getTideHeightAtTime(lat, lng, timestampMs) {
+            const baseRange = 0.5 + 3.0 * Math.abs(Math.sin(lat * Math.PI / 40) * Math.cos(lng * Math.PI / 80));
+            const hours = timestampMs / (1000 * 60 * 60);
+            
+            const M2_speed = 28.984104 * Math.PI / 180;
+            const S2_speed = 30.000000 * Math.PI / 180;
+            const K1_speed = 15.041069 * Math.PI / 180;
+            const O1_speed = 13.943035 * Math.PI / 180;
+            
+            const phaseM2 = (lng + lat) * Math.PI / 180;
+            const phaseS2 = (lng - lat) * Math.PI / 180;
+            const phaseK1 = (lng * 0.5) * Math.PI / 180;
+            const phaseO1 = (lng * 0.5 + lat * 0.3) * Math.PI / 180;
+            
+            const ampM2 = baseRange * 0.65;
+            const ampS2 = baseRange * 0.25;
+            const ampK1 = baseRange * 0.12;
+            const ampO1 = baseRange * 0.08;
+            
+            const meanOffset = baseRange * 1.1; 
+            
+            return meanOffset 
+                + ampM2 * Math.cos(M2_speed * hours - phaseM2)
+                + ampS2 * Math.cos(S2_speed * hours - phaseS2)
+                + ampK1 * Math.cos(K1_speed * hours - phaseK1)
+                + ampO1 * Math.cos(O1_speed * hours - phaseO1);
+        }
+
+        function getTideExtremaForDay(lat, lng, date) {
+            const extrema = [];
+            const startOfDay = new Date(date);
+            startOfDay.setHours(0, 0, 0, 0);
+            const startTimestamp = startOfDay.getTime();
+            const oneDayMs = 24 * 60 * 60 * 1000;
+            
+            const stepMs = 15 * 60 * 1000;
+            let prevHeight = getTideHeightAtTime(lat, lng, startTimestamp - stepMs);
+            let currHeight = getTideHeightAtTime(lat, lng, startTimestamp);
+            
+            for (let t = startTimestamp; t <= startTimestamp + oneDayMs; t += stepMs) {
+                const nextHeight = getTideHeightAtTime(lat, lng, t + stepMs);
+                
+                const isMax = (currHeight > prevHeight && currHeight > nextHeight);
+                const isMin = (currHeight < prevHeight && currHeight < nextHeight);
+                
+                if (isMax || isMin) {
+                    const timeString = new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                    extrema.push({
+                        type: isMax ? 'Pleine Mer' : 'Basse Mer',
+                        height: currHeight.toFixed(1),
+                        time: timeString,
+                        timestamp: t
+                    });
+                }
+                
+                prevHeight = currHeight;
+                currHeight = nextHeight;
+            }
+            return extrema;
+        }
+
+        function renderTideChart(lat, lng) {
+            const ctx = document.getElementById('tideChart').getContext('2d');
+            const now = Date.now();
+            const labels = [];
+            const dataPoints = [];
+            
+            for (let i = -4; i <= 20; i++) {
+                const timePoint = now + i * 60 * 60 * 1000;
+                const height = getTideHeightAtTime(lat, lng, timePoint);
+                labels.push(new Date(timePoint).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
+                dataPoints.push(height);
+            }
+
+            if (tideChartInstance) {
+                tideChartInstance.destroy();
+            }
+
+            const strokeGradient = ctx.createLinearGradient(0, 0, 0, 140);
+            strokeGradient.addColorStop(0, '#00f0ff');
+            strokeGradient.addColorStop(1, '#00ffaa');
+
+            const fillGradient = ctx.createLinearGradient(0, 0, 0, 140);
+            fillGradient.addColorStop(0, 'rgba(0, 240, 255, 0.22)');
+            fillGradient.addColorStop(1, 'rgba(8, 14, 32, 0.05)');
+
+            tideChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Hauteur (m)",
+                        data: dataPoints,
+                        borderColor: strokeGradient,
+                        borderWidth: 2.5,
+                        backgroundColor: fillGradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: (context) => context.dataIndex === 4 ? 6 : 0,
+                        pointBackgroundColor: '#00ffaa',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#94a3b8', font: { size: 9, family: 'Outfit' }, maxTicksLimit: 6 }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#94a3b8', font: { size: 9, family: 'Outfit' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTidesList(lat, lng) {
+            const container = document.getElementById('tide-list-container');
+            container.innerHTML = '';
+
+            const weekDaysFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+            const monthsFR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+            const now = Date.now();
+
+            for (let i = 0; i < 7; i++) {
+                const checkDate = new Date(now + i * 24 * 60 * 60 * 1000);
+                const dayLabel = i === 0 ? "Aujourd'hui" : (i === 1 ? 'Demain' : weekDaysFull[checkDate.getDay()]);
+                const dateLabel = `${checkDate.getDate()} ${monthsFR[checkDate.getMonth()]}`;
+
+                const dayExtrema = getTideExtremaForDay(lat, lng, checkDate);
+
+                let eventsHtml = '';
+                dayExtrema.forEach(ex => {
+                    const isHigh = ex.type === 'Pleine Mer';
+                    const cellClass = isHigh ? 'high' : 'low';
+                    const icon = isHigh ? 'fa-circle-chevron-up' : 'fa-circle-chevron-down';
+                    const label = isHigh ? 'Pleine Mer' : 'Basse Mer';
+                    eventsHtml += `
+                        <div class="tide-event-cell ${cellClass}">
+                            <div class="event-type-badge"><i class="fa-solid ${icon}"></i>${label}</div>
+                            <div class="event-time">${ex.time}</div>
+                            <div class="event-height">${ex.height} m</div>
+                        </div>`;
+                });
+
+                const card = document.createElement('div');
+                card.className = `tide-day-card${i === 0 ? ' today' : ''}`;
+                card.innerHTML = `
+                    <div class="tide-day-header">
+                        <span class="tide-day-name">${dayLabel}</span>
+                        <span class="tide-day-date">${dateLabel}</span>
+                    </div>
+                    <div class="tide-events-grid">${eventsHtml}</div>`;
+                container.appendChild(card);
+            }
+        }
+
+        function setupAIS() {
+            if (aisSocket) {
+                aisSocket.onclose = null;
+                aisSocket.onerror = null;
+                aisSocket.close();
+            }
+
+            if (!map) return;
+
+            const bounds = map.getBounds();
+            const minLat = bounds.getSouthWest().lat;
+            const minLng = bounds.getSouthWest().lng;
+            const maxLat = bounds.getNorthEast().lat;
+            const maxLng = bounds.getNorthEast().lng;
+
+            setAISStatus('connecting');
+
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host || 'localhost:3000';
+                aisSocket = new WebSocket(`${protocol}//${host}`);
+
+                aisSocket.onopen = () => {
+                    setAISStatus('connected');
+                    const subscribeMessage = {
+                        "BoundingBoxes": [[[minLat, minLng], [maxLat, maxLng]]]
+                    };
+                    aisSocket.send(JSON.stringify(subscribeMessage));
+                };
+
+                aisSocket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.MessageType === 'PositionReport' && data.Message && data.Message.PositionReport) {
+                        const mmsi = data.Metadata.MMSI;
+                        const lat = data.Metadata.Latitude;
+                        const lng = data.Metadata.Longitude;
+                        const name = data.Metadata.ShipName.trim() || `MMSI: ${mmsi}`;
+                        const speed = data.Message.PositionReport.Sog;
+                        const cog = data.Message.PositionReport.Cog;
+
+                        shipData[mmsi] = {
+                            name: name,
+                            lat: lat,
+                            lng: lng,
+                            speed: speed,
+                            cog: cog,
+                            mmsi: mmsi,
+                            lastUpdated: Date.now()
+                        };
+
+                        updateShipMarker(mmsi);
+                    }
+                };
+
+                aisSocket.onerror = (err) => {
+                    console.error("Local WebSocket error:", err);
+                    setAISStatus('disconnected');
+                };
+
+                aisSocket.onclose = () => {
+                    setAISStatus('disconnected');
+                    clearTimeout(socketReconnectTimeout);
+                    socketReconnectTimeout = setTimeout(setupAIS, 5000);
+                };
+
+            } catch (err) {
+                console.error("Failed to connect to backend WebSocket:", err);
+                setAISStatus('disconnected');
+            }
+        }
+
+        function setAISStatus(status) {
+            const dot = document.getElementById('connection-dot');
+            const label = document.getElementById('connection-text');
+
+            dot.className = `status-dot ${status}`;
+
+            if (status === 'connected') {
+                label.textContent = "Trafic en temps réel (AIS)";
+            } else if (status === 'connecting') {
+                label.textContent = "Connexion AIS...";
+            } else {
+                label.textContent = "Erreur Trafic AIS";
+            }
+        }
+
+        function updateShipMarker(mmsi) {
+            const ship = shipData[mmsi];
+            if (!ship) return;
+
+            const icon = createShipIcon(ship.cog, ship.speed, false);
+
+            if (shipMarkers[mmsi]) {
+                shipMarkers[mmsi].setLatLng([ship.lat, ship.lng]);
+                shipMarkers[mmsi].setIcon(icon);
+            } else {
+                const marker = L.marker([ship.lat, ship.lng], { icon: icon }).addTo(map);
+                
+                const popupContent = `
+                    <div class="ship-popup">
+                        <div class="ship-popup-title">
+                            <span><i class="fa-solid fa-ship"></i> ${ship.name}</span>
+                        </div>
+                        <div class="ship-popup-grid">
+                            <span class="ship-popup-label">MMSI</span>
+                            <span class="ship-popup-val">${ship.mmsi}</span>
+                            
+                            <span class="ship-popup-label">Vitesse</span>
+                            <span class="ship-popup-val">${ship.speed.toFixed(1)} kt</span>
+                            
+                            <span class="ship-popup-label">Cap (COG)</span>
+                            <span class="ship-popup-val">${ship.cog}°</span>
+                            
+                            <span class="ship-popup-label">Latitude</span>
+                            <span class="ship-popup-val">${ship.lat.toFixed(5)}</span>
+                            
+                            <span class="ship-popup-label">Longitude</span>
+                            <span class="ship-popup-val">${ship.lng.toFixed(5)}</span>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+
+                marker.on('click', () => {
+                    Object.keys(shipMarkers).forEach(id => {
+                        const s = shipData[id];
+                        if (s) {
+                            shipMarkers[id].setIcon(createShipIcon(s.cog, s.speed, id == mmsi));
+                        }
+                    });
+                });
+
+                shipMarkers[mmsi] = marker;
+            }
+        }
+
+        function createShipIcon(cog, speed, isSelected) {
+            const color = isSelected ? 'var(--color-warning)' : (speed > 1.0 ? 'var(--color-primary)' : 'var(--color-secondary)');
+            const glowColor = isSelected ? 'rgba(255, 170, 0, 0.6)' : (speed > 1.0 ? 'rgba(0, 240, 255, 0.4)' : 'rgba(0, 255, 170, 0.4)');
+            
+            const hasDirection = cog !== undefined && cog >= 0 && cog <= 360 && speed > 0.5;
+            
+            let html = '';
+            if (hasDirection) {
+                html = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" style="transform: rotate(${cog}deg); filter: drop-shadow(0 0 3px ${glowColor}); transition: transform 0.2s ease;">
+                        <path d="M12,2 C12,6 8,11 8,15 C8,19 12,21 12,21 C12,21 16,19 16,15 C16,11 12,6 12,2 Z" fill="${color}" stroke="#060913" stroke-width="1.5"/>
+                    </svg>
+                `;
+            } else {
+                html = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" style="filter: drop-shadow(0 0 3px ${glowColor});">
+                        <circle cx="12" cy="12" r="6" fill="${color}" stroke="#060913" stroke-width="1.5"/>
+                        <circle cx="12" cy="12" r="2.5" fill="#ffffff"/>
+                    </svg>
+                `;
+            }
+
+            return L.divIcon({
+                html: html,
+                className: 'custom-ship-icon',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+        }
+
+        function cleanStaleShips() {
+            const now = Date.now();
+            const staleTime = 5 * 60 * 1000;
+
+            Object.keys(shipData).forEach(mmsi => {
+                if (now - shipData[mmsi].lastUpdated > staleTime) {
+                    if (shipMarkers[mmsi]) {
+                        map.removeLayer(shipMarkers[mmsi]);
+                        delete shipMarkers[mmsi];
+                    }
+                    delete shipData[mmsi];
+                }
+            });
+        }
+    </script>
+</body>
+</html>
